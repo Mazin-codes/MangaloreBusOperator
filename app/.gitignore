@@ -1,0 +1,8 @@
+/build
+.gradle/
+.idea/
+build/
+app/build/
+
+# Firebase secret (do NOT commit)
+app/google-services.json
