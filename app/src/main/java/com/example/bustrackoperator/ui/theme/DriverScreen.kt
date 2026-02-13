@@ -1,4 +1,4 @@
-package com.example.bustrackoperator.ui
+package com.example.bustrackoperator.ui.theme
 
 import android.Manifest
 import android.content.Context
@@ -27,7 +27,9 @@ fun DriverScreen() {
     val database = remember { FirebaseDatabase.getInstance().reference }
 
     var isTripActive by remember { mutableStateOf(false) }
-    val tripId = remember { "trip_${System.currentTimeMillis()}" }
+    val tripId = remember { "route_1" }
+
+
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -122,4 +124,5 @@ private fun startLocationUpdates(
         locationCallback,
         Looper.getMainLooper()
     )
+    fusedLocationClient.removeLocationUpdates(locationCallback)
 }
