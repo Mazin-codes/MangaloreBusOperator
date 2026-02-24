@@ -19,6 +19,7 @@ import com.google.android.gms.location.*
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import android.annotation.SuppressLint
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun DriverTrackingScreen(routeId: String) {

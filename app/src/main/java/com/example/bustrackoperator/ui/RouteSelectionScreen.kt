@@ -1,41 +1,38 @@
 package com.example.bustrackoperator.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.*
 
 @Composable
-fun RouteSelectionScreen(onRouteSelected: (String) -> Unit) {
+fun RouteSelectionScreen(
+    onRouteSelected: (String) -> Unit,
+    onLogout: () -> Unit
+) {
 
-    var routes by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
+    val routes = remember { mutableStateListOf<Pair<String, String>>() }
+    val database = FirebaseDatabase.getInstance().reference
 
     LaunchedEffect(Unit) {
-        FirebaseDatabase.getInstance()
-            .getReference("routes")
-            .get()
-            .addOnSuccessListener { snapshot ->
-
-                val list = mutableListOf<Pair<String, String>>()
-
-                for (routeSnap in snapshot.children) {
-                    val id = routeSnap.key ?: continue
-                    val name = routeSnap.child("name")
-                        .getValue(String::class.java) ?: "Route $id"
-
-                    list.add(Pair(id, name))
+        database.child("routes")
+            .addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    routes.clear()
+                    for (routeSnap in snapshot.children) {
+                        val id = routeSnap.key ?: continue
+                        val name = routeSnap.child("name")
+                            .getValue(String::class.java) ?: "Route $id"
+                        routes.add(id to name)
+                    }
                 }
 
-                routes = list
-                isLoading = false
-            }
-            .addOnFailureListener {
-                isLoading = false
-            }
+                override fun onCancelled(error: DatabaseError) {}
+            })
     }
 
     Column(
@@ -44,26 +41,41 @@ fun RouteSelectionScreen(onRouteSelected: (String) -> Unit) {
             .padding(24.dp)
     ) {
 
-        Text("Select Route", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            "Select Route",
+            style = MaterialTheme.typography.headlineMedium
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        if (isLoading) {
-            CircularProgressIndicator()
-        } else {
-            routes.forEach { (id, name) ->
-                Card(
+        LazyColumn {
+            items(routes) { (id, name) ->
+                Button(
+                    onClick = { onRouteSelected(id) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                        .clickable { onRouteSelected(id) }
+                        .padding(bottom = 12.dp)
                 ) {
-                    Text(
-                        text = name,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    Text(name)
                 }
             }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = {
+                com.google.firebase.auth.FirebaseAuth
+                    .getInstance()
+                    .signOut()
+                onLogout()
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error
+            )
+        ) {
+            Text("LOGOUT")
         }
     }
 }
