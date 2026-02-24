@@ -1,4 +1,4 @@
-package com.example.bustrackoperator.ui.theme
+package com.example.bustrackoperator.ui
 
 import android.Manifest
 import android.content.Context
@@ -19,16 +19,19 @@ import com.google.android.gms.location.*
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import android.annotation.SuppressLint
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
-fun DriverScreen() {
+fun DriverTrackingScreen(routeId: String) {
     val context = LocalContext.current
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
     val database = remember { FirebaseDatabase.getInstance().reference }
 
     var isTripActive by remember { mutableStateOf(false) }
-    val tripId = remember { "route_1" }
-
+    val tripId = routeId
+    var locationCallback by remember {
+        mutableStateOf<LocationCallback?>(null)
+    }
 
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -42,7 +45,13 @@ fun DriverScreen() {
             permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
-
+    DisposableEffect(Unit) {
+        onDispose {
+            locationCallback?.let {
+                fusedLocationClient.removeLocationUpdates(it)
+            }
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -60,8 +69,15 @@ fun DriverScreen() {
 
         Button(
             onClick = {
+                if (locationCallback != null) return@Button
                 isTripActive = true
-                startLocationUpdates(context, fusedLocationClient, database, tripId)
+                locationCallback = startLocationUpdates(
+                    context,
+                    fusedLocationClient,
+                    database,
+                    tripId,
+                    { isTripActive }
+                )
             },
             enabled = !isTripActive,
             modifier = Modifier
@@ -76,7 +92,16 @@ fun DriverScreen() {
         Button(
             onClick = {
                 isTripActive = false
-                database.child("liveTrips").child(tripId).removeValue()
+
+                locationCallback?.let {
+                    fusedLocationClient.removeLocationUpdates(it)
+                    locationCallback =null
+                }
+
+                database.child("routes")
+                    .child(tripId)
+                    .child("currentLocation")
+                    .removeValue()
             },
             enabled = isTripActive,
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
@@ -94,8 +119,10 @@ private fun startLocationUpdates(
     context: Context,
     fusedLocationClient: FusedLocationProviderClient,
     database: DatabaseReference,
-    tripId: String
-) {
+    tripId: String,
+    isTripActive:()->Boolean
+): LocationCallback? {
+
     val locationRequest = LocationRequest.Builder(
         Priority.PRIORITY_HIGH_ACCURACY,
         5000
@@ -103,13 +130,18 @@ private fun startLocationUpdates(
 
     val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
+            if (!isTripActive()) return
             val location = result.lastLocation ?: return
             val data = mapOf(
                 "lat" to location.latitude,
                 "lng" to location.longitude,
                 "timestamp" to System.currentTimeMillis()
             )
-            database.child("liveTrips").child(tripId).setValue(data)
+
+            database.child("routes")
+                .child(tripId)
+                .child("currentLocation")
+                .setValue(data)
         }
     }
 
@@ -117,12 +149,13 @@ private fun startLocationUpdates(
             context,
             Manifest.permission.ACCESS_FINE_LOCATION
         ) != PackageManager.PERMISSION_GRANTED
-    ) return
+    ) return null
 
     fusedLocationClient.requestLocationUpdates(
         locationRequest,
         locationCallback,
         Looper.getMainLooper()
     )
-    fusedLocationClient.removeLocationUpdates(locationCallback)
+
+    return locationCallback
 }
